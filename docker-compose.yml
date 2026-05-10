@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # 1. База данных PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: virtus_fit_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 06092006kirill # Твой пароль из .env
+      POSTGRES_DB: virtus_fit_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d virtus_fit_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Redis для кеширования
+  redis:
+    image: redis:7-alpine
+    container_name: virtus_fit_redis
+    ports:
+      - "6379:6379"
+
+  # 3. Наше FastAPI приложение
+  web:
+    build: .
+    container_name: virtus_fit_api
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy # Ждем, пока БД точно запустится
+      redis:
+        condition: service_started
+    environment:
+      # ВНИМАНИЕ: В докере localhost не работает! Мы обращаемся к сервисам по их именам (db и redis)
+      - DATABASE_URL=postgresql+asyncpg://postgres:06092006kirill@db:5432/virtus_fit_db
+      - REDIS_URL=redis://redis:6379/0
+
+volumes:
+  postgres_data: # Постоянное хранилище, чтобы БД не удалялась при перезапуске
